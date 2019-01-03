@@ -1,76 +1,88 @@
-#include <EEPROM.h>
+
+#define ENCODER_DO_NOT_USE_INTERRUPTS
 
 #include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
-#include <avr/power.h>
-#endif
+#include <EnableInterrupt.h>
+#include <Encoder.h>
+#include <EEPROM.h>
 
 #define PIN 6
-
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(28, PIN, NEO_GRB + NEO_KHZ800);
+Encoder myEnc(7, 8);
 
 // IMPORTANT: To reduce NeoPixel burnout risk, add 1000 uF capacitor across
 // pixel power leads, add 300 - 500 Ohm resistor on first pixel's data input
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
-unsigned char mode = 0;
+long pos;
+
+unsigned char mode;
+unsigned char brightness = 127;
+
+void interruptFunction() {
+  long newpos = myEnc.read();
+  brightness += newpos - pos;
+  pos = newpos;
+}
 
 void setup() {
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
 
+  pos = myEnc.read();
+
+  enableInterrupt(7, interruptFunction, CHANGE);
+  enableInterrupt(8, interruptFunction, CHANGE);
+
   EEPROM.get(0, mode);
-  EEPROM.update(0, (mode + 1) % 11);
+  EEPROM.update(0, (mode + 1) % 12);
 }
 
 void loop() {
+  long newpos = myEnc.read();
+  brightness += pos - newpos;
+  pos = newpos;
+
   switch (mode) {
     case 0:
-      theaterChase(strip.Color(255, 63, 0), 50); // Fire-ish
+      colorWipe(strip.Color(brightness, brightness, brightness), 50); // White
       break;
     case 1:
-      colorWipe(strip.Color(255, 0, 0), 50); // Red
+      colorWipe(strip.Color(brightness, 0, 0), 50); // Red
       break;
     case 2:
-      colorWipe(strip.Color(0, 255, 0), 50); // Green
+      colorWipe(strip.Color(0, brightness, 0), 50); // Green
       break;
     case 3:
-      colorWipe(strip.Color(0, 0, 255), 50); // Blue
+      colorWipe(strip.Color(0, 0, brightness), 50); // Blue
       break;
     case 4:
-      theaterChase(strip.Color(127, 127, 127), 50); // White
+      theaterChase(strip.Color(brightness, brightness, brightness), 50); // White
       break;
     case 5:
-      theaterChase(strip.Color(127, 0, 0), 50); // Red
+      theaterChase(strip.Color(brightness, 0, 0), 50); // Red
       break;
     case 6:
-      theaterChase(strip.Color(0, 0, 127), 50); // Blue
+      theaterChase(strip.Color(0, brightness, 0), 50); // Green
       break;
     case 7:
-      rainbow(20);
+      theaterChase(strip.Color(0, 0, brightness), 50); // Blue
       break;
     case 8:
-      rainbowCycle(20);
+      theaterChase(strip.Color(brightness, brightness / 4, 0), 50); // Fire-ish
       break;
     case 9:
-      theaterChaseRainbow(50);
-      break;
-    default:
-      colorWipe(strip.Color(255, 0, 0), 50); // Red
-      colorWipe(strip.Color(0, 255, 0), 50); // Green
-      colorWipe(strip.Color(0, 0, 255), 50); // Blue
-      //colorWipe(strip.Color(0, 0, 0, 255), 50); // White RGBW
-      // Send a theater pixel chase in...
-      theaterChase(strip.Color(127, 127, 127), 50); // White
-      theaterChase(strip.Color(127, 0, 0), 50); // Red
-      theaterChase(strip.Color(0, 0, 127), 50); // Blue
-
       rainbow(20);
+      break;
+    case 10:
       rainbowCycle(20);
+      break;
+    case 11:
       theaterChaseRainbow(50);
       break;
   }
+
   EEPROM.update(0, mode);
 }
 
